@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { dbService } from "fbase";
+import { dbService, storageService } from "fbase";
+import { v4 as uuidv4 } from "uuid";
+import { getDownloadURL, ref, uploadString } from "firebase/storage";
 import {
     collection,
     addDoc,
@@ -14,6 +16,8 @@ const Home = ({ userObj }) => {
     const [tweet, setTweet] = useState("");
     // for getting tweets from database
     const [tweets, setTweets] = useState([]);
+    //Photo Source
+    const [photoSource, setPhotoSource] = useState("");
     // get tweets from database in real time
     useEffect(() => {
         const q = query(
@@ -21,29 +25,59 @@ const Home = ({ userObj }) => {
             orderBy("createdAt", "desc")
         );
         onSnapshot(q, (snapshot) => {
-            const nweetArr = snapshot.docs.map((doc) => ({
+            const tweetArr = snapshot.docs.map((doc) => ({
                 id: doc.id,
                 ...doc.data(),
             }));
-            setTweets(nweetArr);
+            setTweets(tweetArr);
         });
     }, []);
     const onSubmit = async (event) => {
         event.preventDefault();
-        // upload tweet to databse (firebase)
-        try {
-            const docRef = await addDoc(collection(dbService, "tweets"), {
-                text: tweet,
-                createdAt: new Date(),
-                creatorId: userObj.uid,
-            });
-            console.log("Document written with ID: ", docRef.id);
-        } catch (error) {
-            console.log(error);
+        // upload photo to database (firebase)
+        if (!tweet && photoSource === "") return;
+        let photoURL = "";
+        if (photoSource !== "") {
+            const fileRef = ref(storageService, `${userObj.uid}/${uuidv4()}`);
+            const response = await uploadString(
+                fileRef,
+                photoSource,
+                "data_url"
+            );
+            photoURL = await getDownloadURL(response.ref);
         }
+
+        // upload tweet to databse (firebase)
+        await addDoc(collection(dbService, "tweets"), {
+            text: tweet,
+            createdAt: new Date(),
+            creatorId: userObj.uid,
+            photoURL,
+        });
         // after submit make tweet empty again
         setTweet("");
+        onClearPhoto();
     };
+    // get Photo Url
+    const onFileChange = (event) => {
+        const {
+            target: { files },
+        } = event;
+        const imageFile = files[0];
+        const reader = new FileReader();
+        reader.onloadend = (e) => {
+            const {
+                currentTarget: { result },
+            } = e;
+            setPhotoSource(result);
+        };
+        reader.readAsDataURL(imageFile);
+    };
+    // clear Photo Url with Button
+    const onClearPhoto = () => {
+        setPhotoSource(null);
+    };
+
     const onChange = (event) => {
         const {
             target: { value },
@@ -59,8 +93,21 @@ const Home = ({ userObj }) => {
                     maxLength={120}
                     value={tweet}
                     onChange={onChange}
+                    required
                 />
                 <input type="submit" />
+                <input type="file" accept="image/*" onChange={onFileChange} />
+                {photoSource && (
+                    <div>
+                        <img
+                            src={photoSource}
+                            alt=""
+                            width="50px"
+                            height="50px"
+                        />
+                        <button onClick={onClearPhoto}>삭제</button>
+                    </div>
+                )}
             </form>
             {/* Get tweets from database */}
             <div>
