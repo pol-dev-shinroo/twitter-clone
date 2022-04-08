@@ -1,5 +1,7 @@
 import React, { useState } from "react";
+import { storageService } from "fbase";
 import { deleteDoc, getFirestore, doc, updateDoc } from "firebase/firestore";
+import { deleteObject, ref } from "firebase/storage";
 
 const Tweet = ({ tweetObj, isOwner }) => {
     const [editing, setEditing] = useState(false);
@@ -11,6 +13,9 @@ const Tweet = ({ tweetObj, isOwner }) => {
             console.log(tweetObj.id);
             // doc("컬렉션이름", "문서이름")
             await deleteDoc(doc(getFirestore(), "tweets", tweetObj.id));
+            if (tweetObj.photoURL !== "") {
+                await deleteObject(ref(storageService, tweetObj.photoURL));
+            }
         }
     };
     const toggleEditing = () => setEditing((prev) => !prev);
@@ -48,7 +53,7 @@ const Tweet = ({ tweetObj, isOwner }) => {
                     <h4>{tweetObj.text}</h4>
                     {tweetObj.photoURL && (
                         <img
-                            src={tweetObj.photoUrl}
+                            src={tweetObj.photoURL}
                             alt=""
                             width="50px"
                             height="50px"
